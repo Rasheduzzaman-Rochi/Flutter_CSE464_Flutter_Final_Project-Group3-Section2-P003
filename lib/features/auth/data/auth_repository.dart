@@ -1,16 +1,26 @@
+import 'package:google_sign_in/google_sign_in.dart';
+
 class AuthRepository {
+  AuthRepository({GoogleSignIn? googleSignIn})
+    : _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: ['email']);
+
+  final GoogleSignIn _googleSignIn;
+
   String? _registeredName;
   String? _registeredPhone;
   String? _registeredEmail;
   String? _registeredPassword;
   bool _otpVerified = false;
+  bool _isGoogleAccount = false;
 
   String? get registeredName => _registeredName;
   String? get registeredPhone => _registeredPhone;
   String? get registeredEmail => _registeredEmail;
   bool get isRegistered =>
-      _registeredEmail != null && _registeredPassword != null;
+      _registeredEmail != null &&
+      (_registeredPassword != null || _isGoogleAccount);
   bool get isOtpVerified => _otpVerified;
+  bool get isGoogleAccount => _isGoogleAccount;
 
   Future<String?> signUpWithEmail(
     String name,
@@ -37,6 +47,7 @@ class AuthRepository {
     _registeredEmail = email.trim().toLowerCase();
     _registeredPassword = password;
     _otpVerified = false;
+    _isGoogleAccount = false;
     return null;
   }
 
@@ -75,11 +86,39 @@ class AuthRepository {
     return null;
   }
 
-  Future<String?> signInWithGoogle() async => null;
+  Future<String?> signInWithGoogle() async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+
+    try {
+      final account = await _googleSignIn.signIn();
+      if (account == null) {
+        return 'Google sign-in was cancelled.';
+      }
+
+      _registeredName = account.displayName?.trim().isNotEmpty == true
+          ? account.displayName!.trim()
+          : 'Google User';
+      _registeredPhone = '';
+      _registeredEmail = account.email.trim().toLowerCase();
+      _registeredPassword = '';
+      _otpVerified = true;
+      _isGoogleAccount = true;
+      return null;
+    } catch (_) {
+      return 'Unable to sign in with Google right now.';
+    }
+  }
 
   Future<String?> signInWithFacebook() async => null;
 
   Future<void> signOut() async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
+    await _googleSignIn.signOut();
+    _registeredName = null;
+    _registeredPhone = null;
+    _registeredEmail = null;
+    _registeredPassword = null;
+    _otpVerified = false;
+    _isGoogleAccount = false;
   }
 }

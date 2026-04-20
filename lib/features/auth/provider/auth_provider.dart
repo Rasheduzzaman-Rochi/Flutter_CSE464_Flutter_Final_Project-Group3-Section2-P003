@@ -21,6 +21,7 @@ class AuthProvider extends ChangeNotifier {
   String? get userPhone => _repository.registeredPhone;
   String? get userEmail => _userEmail ?? _repository.registeredEmail;
   String get lastOtpCode => _lastOtpCode;
+  bool get isGoogleAccount => _repository.isGoogleAccount;
 
   String get initialAuthRoute {
     if (!_repository.isRegistered) {
@@ -71,6 +72,20 @@ class AuthProvider extends ChangeNotifier {
     if (error == null) {
       _isLoggedIn = true;
       _userEmail = email.trim().toLowerCase();
+      notifyListeners();
+    }
+
+    _setLoading(false);
+    return error;
+  }
+
+  Future<String?> signInWithGoogle() async {
+    _setLoading(true);
+    final error = await _repository.signInWithGoogle();
+
+    if (error == null) {
+      _isLoggedIn = true;
+      _userEmail = _repository.registeredEmail;
       notifyListeners();
     }
 

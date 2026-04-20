@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants.dart';
 import '../../provider/auth_provider.dart';
 import '../widgets/auth_shell.dart';
+import '../widgets/google_auth_button.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -116,6 +117,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     )
                   : const Text('Sign Up & Send OTP'),
             ),
+            const SizedBox(height: 12),
+            const _AuthDivider(),
+            const SizedBox(height: 12),
+            GoogleAuthButton(
+              label: 'Sign up with Google',
+              isLoading: auth.isLoading,
+              onPressed: () => _onGoogleAuth(context),
+            ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () =>
@@ -157,5 +166,50 @@ class _SignUpScreenState extends State<SignUpScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _onGoogleAuth(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    final error = await auth.signInWithGoogle();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    if (error != null) {
+      _showMessage(context, error);
+      return;
+    }
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.home,
+      (route) => false,
+    );
+  }
+}
+
+class _AuthDivider extends StatelessWidget {
+  const _AuthDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: Divider(height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'OR',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: const Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider(height: 1)),
+      ],
+    );
   }
 }
