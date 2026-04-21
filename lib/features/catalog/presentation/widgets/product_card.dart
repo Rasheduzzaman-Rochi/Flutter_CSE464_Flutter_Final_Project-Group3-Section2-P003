@@ -69,23 +69,79 @@ class ProductNetworkImage extends StatelessWidget {
     this.size = 80,
   });
 
+  String _extractGoogleDriveFileId(Uri uri) {
+    final segments = uri.pathSegments;
+    final fileIndex = segments.indexOf('d');
+    if (fileIndex != -1 && fileIndex + 1 < segments.length) {
+      return segments[fileIndex + 1];
+    }
+
+    final idFromQuery = uri.queryParameters['id'];
+    if (idFromQuery != null && idFromQuery.trim().isNotEmpty) {
+      return idFromQuery.trim();
+    }
+
+    return '';
+  }
+
+  String _resolveImageUrl(String rawUrl) {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return '';
+
+    final schemeNormalized = trimmed.startsWith('//')
+        ? 'https:$trimmed'
+        : trimmed;
+
+    final uri = Uri.tryParse(schemeNormalized);
+    if (uri == null) {
+      return schemeNormalized;
+    }
+
+    final host = uri.host.toLowerCase();
+    final isGoogleDrive =
+        host.contains('drive.google.com') || host.contains('docs.google.com');
+
+    if (!isGoogleDrive) {
+      return schemeNormalized;
+    }
+
+    final fileId = _extractGoogleDriveFileId(uri);
+    if (fileId.isEmpty) {
+      return schemeNormalized;
+    }
+
+    // Use Drive thumbnail endpoint because share links return HTML, not image bytes.
+    return 'https://drive.google.com/thumbnail?id=$fileId&sz=w1600';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final image = Image.network(
-      imageUrl,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          color: Colors.grey[200],
-          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        );
-      },
-      errorBuilder: (_, child, details) => Container(
-        color: Colors.grey[200],
-        child: const Center(child: Icon(Icons.broken_image)),
-      ),
-    );
+    final normalizedUrl = _resolveImageUrl(imageUrl);
+
+    final image = normalizedUrl.isEmpty
+        ? Container(
+            color: Colors.grey[200],
+            child: const Center(
+              child: Icon(Icons.image_not_supported_outlined),
+            ),
+          )
+        : Image.network(
+            normalizedUrl,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Container(
+                color: Colors.grey[200],
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              );
+            },
+            errorBuilder: (_, child, details) => Container(
+              color: Colors.grey[200],
+              child: const Center(child: Icon(Icons.broken_image)),
+            ),
+          );
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
