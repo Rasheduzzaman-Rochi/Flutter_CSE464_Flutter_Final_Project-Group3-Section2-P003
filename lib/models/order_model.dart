@@ -31,6 +31,7 @@ class Order {
   final String status;
   final DateTime createdAt;
   final String? userEmail;
+  final String? userId;
 
   const Order({
     required this.id,
@@ -42,6 +43,7 @@ class Order {
     required this.status,
     required this.createdAt,
     this.userEmail,
+    this.userId,
   });
 
   factory Order.fromFirestore(Map<String, dynamic> doc, String id) {
@@ -77,6 +79,7 @@ class Order {
       status: doc['status'] ?? 'placed',
       createdAt: createdAt,
       userEmail: doc['userEmail'] as String?,
+      userId: doc['userId'] as String?,
     );
   }
 
@@ -91,6 +94,7 @@ class Order {
       'status': status,
       'createdAt': FieldValue.serverTimestamp(),
       'userEmail': userEmail,
+      'userId': userId,
     };
   }
 }

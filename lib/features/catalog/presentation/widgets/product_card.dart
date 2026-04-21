@@ -62,11 +62,15 @@ class ProductCard extends StatelessWidget {
 class ProductNetworkImage extends StatelessWidget {
   final String imageUrl;
   final double size;
+  final BoxFit fit;
+  final double borderRadius;
 
   const ProductNetworkImage({
     super.key,
     required this.imageUrl,
     this.size = 80,
+    this.fit = BoxFit.cover,
+    this.borderRadius = 12,
   });
 
   String _extractGoogleDriveFileId(Uri uri) {
@@ -127,7 +131,7 @@ class ProductNetworkImage extends StatelessWidget {
           )
         : Image.network(
             normalizedUrl,
-            fit: BoxFit.cover,
+            fit: fit,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
               return Container(
@@ -144,7 +148,7 @@ class ProductNetworkImage extends StatelessWidget {
           );
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(borderRadius),
       child: size.isFinite
           ? SizedBox(width: size, height: size, child: image)
           : SizedBox.expand(child: image),

@@ -34,6 +34,12 @@ class AuthRepository {
   String? get registeredPhone => _registeredPhone;
   String? get registeredEmail => _registeredEmail ?? _auth.currentUser?.email;
 
+  String? _toNonEmptyString(dynamic value) {
+    if (value == null) return null;
+    final parsed = value.toString().trim();
+    return parsed.isEmpty ? null : parsed;
+  }
+
   Future<void> loadCurrentUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -44,13 +50,50 @@ class AuthRepository {
     }
 
     _registeredName = user.displayName;
+    _registeredPhone = _toNonEmptyString(user.phoneNumber);
     _registeredEmail = user.email;
 
-    final snapshot = await _firestore.collection('users').doc(user.uid).get();
-    final data = snapshot.data();
-    _registeredName = data?['name'] as String? ?? _registeredName;
-    _registeredPhone = data?['phone'] as String?;
-    _registeredEmail = data?['email'] as String? ?? _registeredEmail;
+    try {
+      final snapshot = await _firestore.collection('users').doc(user.uid).get();
+      Map<String, dynamic>? data = snapshot.data();
+
+      if (data == null && _registeredEmail != null) {
+        final byEmail = await _firestore
+            .collection('users')
+            .where('email', isEqualTo: _registeredEmail!.trim().toLowerCase())
+            .limit(1)
+            .get();
+        if (byEmail.docs.isNotEmpty) {
+          data = byEmail.docs.first.data();
+        }
+      }
+
+      final name = _toNonEmptyString(data?['name']);
+      final phone =
+          _toNonEmptyString(data?['phone']) ??
+          _toNonEmptyString(data?['mobile']) ??
+          _toNonEmptyString(data?['phoneNumber']);
+      final email = _toNonEmptyString(data?['email']);
+
+      _registeredName = name ?? _registeredName;
+      _registeredPhone = phone ?? _registeredPhone;
+      _registeredEmail = email ?? _registeredEmail;
+
+      if (_registeredEmail != null || _registeredPhone != null) {
+        await _firestore.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          if (_registeredName != null) 'name': _registeredName,
+          if (_registeredEmail != null)
+            'email': _registeredEmail!.trim().toLowerCase(),
+          if (_registeredPhone != null) ...{
+            'phone': _registeredPhone,
+            'mobile': _registeredPhone,
+          },
+        }, SetOptions(merge: true));
+      }
+    } catch (_) {
+      // Keep FirebaseAuth fallback values when Firestore profile read fails.
+    }
   }
 
   Future<String?> signUpWithEmail(
@@ -74,6 +117,7 @@ class AuthRepository {
           'uid': user.uid,
           'name': name.trim(),
           'phone': phone.trim(),
+          'mobile': phone.trim(),
           'email': email.trim().toLowerCase(),
           'provider': 'password',
           'createdAt': FieldValue.serverTimestamp(),
@@ -134,17 +178,18 @@ class AuthRepository {
       final userCredential = await _auth.signInWithCredential(credential);
       final user = userCredential.user;
       if (user != null) {
+        final phone = _toNonEmptyString(user.phoneNumber);
         await _firestore.collection('users').doc(user.uid).set({
           'uid': user.uid,
           'name': user.displayName ?? 'Google User',
-          'phone': user.phoneNumber ?? '',
           'email': user.email ?? account.email,
           'provider': 'google',
           'createdAt': FieldValue.serverTimestamp(),
+          if (phone != null) ...{'phone': phone, 'mobile': phone},
         }, SetOptions(merge: true));
 
         _registeredName = user.displayName ?? 'Google User';
-        _registeredPhone = user.phoneNumber ?? '';
+        _registeredPhone = phone;
         _registeredEmail = user.email ?? account.email;
       }
       return null;

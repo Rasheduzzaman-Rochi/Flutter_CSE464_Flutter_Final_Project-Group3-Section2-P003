@@ -26,6 +26,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   String? get userEmail => _userEmail ?? _repository.registeredEmail;
+  String? get userId => _firebaseAuth.currentUser?.uid;
   String get lastOtpCode => '123456';
   bool get isGoogleAccount => _repository.isGoogleAccount;
 
@@ -52,7 +53,11 @@ class AuthProvider extends ChangeNotifier {
     _isLoggedIn = user != null;
     _userEmail = user?.email;
     if (user != null) {
-      await _repository.loadCurrentUserProfile();
+      try {
+        await _repository.loadCurrentUserProfile();
+      } catch (_) {
+        // Keep auth state usable even if profile read fails.
+      }
     }
     notifyListeners();
   }
