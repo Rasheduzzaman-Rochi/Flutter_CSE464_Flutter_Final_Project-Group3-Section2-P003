@@ -1,26 +1,28 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthRepository {
-  AuthRepository({GoogleSignIn? googleSignIn})
-    : _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: ['email']);
+  AuthRepository({
+    FirebaseAuth? firebaseAuth,
+    GoogleSignIn? googleSignIn,
+  })  : _auth = firebaseAuth ?? FirebaseAuth.instance,
+        _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: ['email']);
 
+  final FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
 
-  String? _registeredName;
-  String? _registeredPhone;
-  String? _registeredEmail;
-  String? _registeredPassword;
-  bool _otpVerified = false;
-  bool _isGoogleAccount = false;
+  User? get currentUser => _auth.currentUser;
 
-  String? get registeredName => _registeredName;
-  String? get registeredPhone => _registeredPhone;
-  String? get registeredEmail => _registeredEmail;
-  bool get isRegistered =>
-      _registeredEmail != null &&
-      (_registeredPassword != null || _isGoogleAccount);
-  bool get isOtpVerified => _otpVerified;
-  bool get isGoogleAccount => _isGoogleAccount;
+  bool get isRegistered => _auth.currentUser != null;
+  bool get isOtpVerified => true;
+  bool get isGoogleAccount => _auth.currentUser?.providerData.any(
+        (provider) => provider.providerId == 'google.com',
+      ) ??
+      false;
+
+  String? get registeredName => _auth.currentUser?.displayName;
+  String? get registeredPhone => _auth.currentUser?.phoneNumber;
+  String? get registeredEmail => _auth.currentUser?.email;
 
   Future<String?> signUpWithEmail(
     String name,
@@ -28,82 +30,64 @@ class AuthRepository {
     String email,
     String password,
   ) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
 
-    if (name.trim().isEmpty) {
-      return 'Please provide your name.';
+      await credential.user?.updateDisplayName(name.trim());
+      await credential.user?.reload();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return e.message ?? 'Failed to create account.';
+    } catch (_) {
+      return 'Failed to create account.';
     }
-
-    if (phone.trim().length < 8) {
-      return 'Please provide a valid mobile number.';
-    }
-
-    if (email.trim().isEmpty || password.length < 6) {
-      return 'Please provide valid email and password (min 6 characters).';
-    }
-
-    _registeredName = name.trim();
-    _registeredPhone = phone.trim();
-    _registeredEmail = email.trim().toLowerCase();
-    _registeredPassword = password;
-    _otpVerified = false;
-    _isGoogleAccount = false;
-    return null;
   }
 
   Future<String?> loginWithEmail(String email, String password) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-
-    if (!isRegistered) {
-      return 'No account found. Please sign up first.';
-    }
-
-    if (!_otpVerified) {
-      return 'Please verify your account with OTP first.';
-    }
-
-    if (_registeredEmail != email.trim().toLowerCase() ||
-        _registeredPassword != password) {
+    try {
+      await _auth.signInWithEmailAndPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return e.message ?? 'Invalid email or password.';
+    } catch (_) {
       return 'Invalid email or password.';
     }
-
-    return null;
   }
 
   Future<void> sendOTP(String phoneNumber, Function(String) onCodeSent) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
     onCodeSent('123456');
   }
 
   Future<String?> verifyOTP(String verificationId, String smsCode) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-
     if (smsCode.trim() != verificationId) {
       return 'Invalid OTP code.';
     }
-
-    _otpVerified = true;
     return null;
   }
 
   Future<String?> signInWithGoogle() async {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-
     try {
       final account = await _googleSignIn.signIn();
       if (account == null) {
         return 'Google sign-in was cancelled.';
       }
 
-      _registeredName = account.displayName?.trim().isNotEmpty == true
-          ? account.displayName!.trim()
-          : 'Google User';
-      _registeredPhone = '';
-      _registeredEmail = account.email.trim().toLowerCase();
-      _registeredPassword = '';
-      _otpVerified = true;
-      _isGoogleAccount = true;
+      final auth = await account.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: auth.accessToken,
+        idToken: auth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
       return null;
+    } on FirebaseAuthException catch (e) {
+      return e.message ?? 'Unable to sign in with Google right now.';
     } catch (_) {
       return 'Unable to sign in with Google right now.';
     }
@@ -112,13 +96,7 @@ class AuthRepository {
   Future<String?> signInWithFacebook() async => null;
 
   Future<void> signOut() async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
     await _googleSignIn.signOut();
-    _registeredName = null;
-    _registeredPhone = null;
-    _registeredEmail = null;
-    _registeredPassword = null;
-    _otpVerified = false;
-    _isGoogleAccount = false;
+    await _auth.signOut();
   }
 }

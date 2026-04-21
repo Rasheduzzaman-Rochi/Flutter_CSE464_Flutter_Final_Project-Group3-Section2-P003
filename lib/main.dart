@@ -119,10 +119,6 @@ class AuthGate extends StatelessWidget {
       return const HomeScreen();
     }
 
-    return switch (auth.initialAuthRoute) {
-      AppRoutes.signup => const SignUpScreen(),
-      AppRoutes.otp => const OtpScreen(),
-      _ => const LoginScreen(),
-    };
+    return const LoginScreen();
   }
 }

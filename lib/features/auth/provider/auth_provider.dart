@@ -1,18 +1,20 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import '../../../core/constants.dart';
 import '../data/auth_repository.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({AuthRepository? repository})
-    : _repository = repository ?? AuthRepository();
+      : _repository = repository ?? AuthRepository() {
+    _syncUser();
+  }
 
   final AuthRepository _repository;
+  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   bool _isLoading = false;
   bool _isLoggedIn = false;
   String? _userEmail;
-  String _lastOtpCode = '';
 
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _isLoggedIn;
@@ -20,19 +22,19 @@ class AuthProvider extends ChangeNotifier {
   String? get userName => _repository.registeredName;
   String? get userPhone => _repository.registeredPhone;
   String? get userEmail => _userEmail ?? _repository.registeredEmail;
-  String get lastOtpCode => _lastOtpCode;
+  String get lastOtpCode => '123456';
   bool get isGoogleAccount => _repository.isGoogleAccount;
 
   String get initialAuthRoute {
-    if (!_repository.isRegistered) {
-      return AppRoutes.signup;
-    }
+    return _firebaseAuth.currentUser == null
+        ? AppRoutes.login
+        : AppRoutes.home;
+  }
 
-    if (!_repository.isOtpVerified) {
-      return AppRoutes.otp;
-    }
-
-    return AppRoutes.login;
+  void _syncUser() {
+    final user = _firebaseAuth.currentUser;
+    _isLoggedIn = user != null;
+    _userEmail = user?.email;
   }
 
   Future<String?> signUp(
@@ -42,16 +44,10 @@ class AuthProvider extends ChangeNotifier {
     String password,
   ) async {
     _setLoading(true);
-    final error = await _repository.signUpWithEmail(
-      name,
-      phone,
-      email,
-      password,
-    );
+    final error = await _repository.signUpWithEmail(name, phone, email, password);
 
     if (error == null) {
-      await _repository.sendOTP(email, (code) => _lastOtpCode = code);
-      _userEmail = email.trim().toLowerCase();
+      _syncUser();
     }
 
     _setLoading(false);
@@ -59,10 +55,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<String?> verifyOtp(String otp) async {
-    _setLoading(true);
-    final error = await _repository.verifyOTP(_lastOtpCode, otp);
-    _setLoading(false);
-    return error;
+    return null;
   }
 
   Future<String?> login(String email, String password) async {
@@ -70,8 +63,7 @@ class AuthProvider extends ChangeNotifier {
     final error = await _repository.loginWithEmail(email, password);
 
     if (error == null) {
-      _isLoggedIn = true;
-      _userEmail = email.trim().toLowerCase();
+      _syncUser();
       notifyListeners();
     }
 
@@ -84,8 +76,7 @@ class AuthProvider extends ChangeNotifier {
     final error = await _repository.signInWithGoogle();
 
     if (error == null) {
-      _isLoggedIn = true;
-      _userEmail = _repository.registeredEmail;
+      _syncUser();
       notifyListeners();
     }
 
@@ -97,6 +88,7 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     await _repository.signOut();
     _isLoggedIn = false;
+    _userEmail = null;
     _setLoading(false);
   }
 
