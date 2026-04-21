@@ -5,8 +5,8 @@ import '../data/auth_repository.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({AuthRepository? repository})
-      : _repository = repository ?? AuthRepository() {
-    _syncUser();
+    : _repository = repository ?? AuthRepository() {
+    _hydrateUserOnStartup();
   }
 
   final AuthRepository _repository;
@@ -20,21 +20,41 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
   bool get isRegistered => _repository.isRegistered;
   String? get userName => _repository.registeredName;
-  String? get userPhone => _repository.registeredPhone;
+  String? get userPhone {
+    final phone = _repository.registeredPhone;
+    return phone != null && phone.trim().isNotEmpty ? phone : null;
+  }
+
   String? get userEmail => _userEmail ?? _repository.registeredEmail;
   String get lastOtpCode => '123456';
   bool get isGoogleAccount => _repository.isGoogleAccount;
 
   String get initialAuthRoute {
-    return _firebaseAuth.currentUser == null
-        ? AppRoutes.login
-        : AppRoutes.home;
+    return _firebaseAuth.currentUser == null ? AppRoutes.login : AppRoutes.home;
   }
 
-  void _syncUser() {
+  void _hydrateUserOnStartup() {
     final user = _firebaseAuth.currentUser;
     _isLoggedIn = user != null;
     _userEmail = user?.email;
+
+    if (user == null) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _syncUser();
+    });
+  }
+
+  Future<void> _syncUser() async {
+    final user = _firebaseAuth.currentUser;
+    _isLoggedIn = user != null;
+    _userEmail = user?.email;
+    if (user != null) {
+      await _repository.loadCurrentUserProfile();
+    }
+    notifyListeners();
   }
 
   Future<String?> signUp(
@@ -44,10 +64,15 @@ class AuthProvider extends ChangeNotifier {
     String password,
   ) async {
     _setLoading(true);
-    final error = await _repository.signUpWithEmail(name, phone, email, password);
+    final error = await _repository.signUpWithEmail(
+      name,
+      phone,
+      email,
+      password,
+    );
 
     if (error == null) {
-      _syncUser();
+      await _syncUser();
     }
 
     _setLoading(false);
@@ -63,8 +88,7 @@ class AuthProvider extends ChangeNotifier {
     final error = await _repository.loginWithEmail(email, password);
 
     if (error == null) {
-      _syncUser();
-      notifyListeners();
+      await _syncUser();
     }
 
     _setLoading(false);
@@ -76,8 +100,7 @@ class AuthProvider extends ChangeNotifier {
     final error = await _repository.signInWithGoogle();
 
     if (error == null) {
-      _syncUser();
-      notifyListeners();
+      await _syncUser();
     }
 
     _setLoading(false);
@@ -89,6 +112,7 @@ class AuthProvider extends ChangeNotifier {
     await _repository.signOut();
     _isLoggedIn = false;
     _userEmail = null;
+    notifyListeners();
     _setLoading(false);
   }
 
