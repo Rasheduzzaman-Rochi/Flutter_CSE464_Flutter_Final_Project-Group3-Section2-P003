@@ -20,6 +20,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressCtrl = TextEditingController();
   bool _isLoading = false;
 
+  String _generateOrderId() {
+    final shortId = DateTime.now().millisecondsSinceEpoch
+        .remainder(1000000)
+        .toString()
+        .padLeft(6, '0');
+    return '#$shortId';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -39,10 +47,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final orders = context.read<OrdersProvider>();
     final authProvider = context.read<AuthProvider>();
     final now = DateTime.now();
+    final generatedOrderId = _generateOrderId();
 
     try {
       final order = Order(
-        id: now.microsecondsSinceEpoch.toString(),
+        id: generatedOrderId,
         customerName: _nameCtrl.text.trim(),
         customerPhone: _phoneCtrl.text.trim(),
         customerAddress: _addressCtrl.text.trim(),

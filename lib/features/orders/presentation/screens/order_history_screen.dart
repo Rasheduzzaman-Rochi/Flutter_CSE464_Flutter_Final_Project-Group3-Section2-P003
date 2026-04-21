@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/widgets/main_nav_bar.dart';
@@ -16,6 +18,13 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   String _filter = 'All';
   final List<String> _statuses = ['All', 'placed', 'shipped', 'delivered'];
   bool _loadedOrders = false;
+  Timer? _snackBarTimer;
+
+  @override
+  void dispose() {
+    _snackBarTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -25,7 +34,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     _loadedOrders = true;
 
     final authProvider = context.read<AuthProvider>();
-    context.read<OrdersProvider>().loadOrders(
+    context.read<OrdersProvider>().startOrdersListener(
       userEmail: authProvider.userEmail,
     );
   }
@@ -91,23 +100,25 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                           order.id,
                         );
                         final messenger = ScaffoldMessenger.of(context);
+                        _snackBarTimer?.cancel();
                         messenger.clearSnackBars();
                         messenger.showSnackBar(
                           SnackBar(
                             content: const Text('Order removed'),
-                            duration: const Duration(milliseconds: 1500),
+                            duration: const Duration(seconds: 2),
                             behavior: SnackBarBehavior.floating,
                             action: SnackBarAction(
                               label: 'Undo',
                               onPressed: () {
+                                _snackBarTimer?.cancel();
                                 context.read<OrdersProvider>().addOrder(order);
                               },
                             ),
                           ),
                         );
-                        Future.delayed(const Duration(milliseconds: 1600), () {
+                        _snackBarTimer = Timer(const Duration(seconds: 2), () {
                           if (!mounted) return;
-                          messenger.hideCurrentSnackBar();
+                          messenger.removeCurrentSnackBar();
                         });
                       },
                     ),

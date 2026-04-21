@@ -12,14 +12,23 @@ class OrderTile extends StatelessWidget {
   Color get _statusColor {
     switch (order.status) {
       case 'placed':
-        return Colors.orange;
+        return const Color(0xFFF2B700);
       case 'shipped':
-        return Colors.blue;
+        return const Color(0xFF2F80ED);
       case 'delivered':
-        return Colors.green;
+        return const Color(0xFF27AE60);
       default:
         return Colors.grey;
     }
+  }
+
+  String get _displayOrderId {
+    final raw = order.id.trim();
+    if (raw.isEmpty) return '#------';
+    if (raw.startsWith('#')) return raw.toUpperCase();
+
+    final trimmed = raw.length > 6 ? raw.substring(0, 6) : raw;
+    return '#${trimmed.toUpperCase()}';
   }
 
   @override
@@ -33,7 +42,7 @@ class OrderTile extends StatelessWidget {
           color: AppTheme.primaryColor,
         ),
         title: Text(
-          'Order #${order.id.substring(0, 6).toUpperCase()}',
+          'Order $_displayOrderId',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
@@ -69,12 +78,25 @@ class OrderTile extends StatelessWidget {
                   (item) => Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(item.name, style: const TextStyle(fontSize: 14)),
-                        Text(
-                          'x${item.quantity} - ৳${(item.price * item.quantity).toStringAsFixed(2)}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 138,
+                          child: Text(
+                            'x${item.quantity} - ৳${(item.price * item.quantity).toStringAsFixed(2)}',
+                            textAlign: TextAlign.right,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ],
                     ),

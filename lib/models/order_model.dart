@@ -61,9 +61,14 @@ class Order {
     final createdAt = createdAtValue is Timestamp
         ? createdAtValue.toDate()
         : DateTime.now();
+    final firestoreOrderId = (doc['orderId'] as String?)?.trim();
+    final resolvedOrderId =
+        (firestoreOrderId != null && firestoreOrderId.isNotEmpty)
+        ? firestoreOrderId
+        : id;
 
     return Order(
-      id: id,
+      id: resolvedOrderId,
       customerName: doc['customerName'] ?? '',
       customerPhone: doc['customerPhone'] ?? '',
       customerAddress: doc['customerAddress'] ?? '',
@@ -77,6 +82,7 @@ class Order {
 
   Map<String, dynamic> toMap() {
     return {
+      'orderId': id,
       'customerName': customerName,
       'customerPhone': customerPhone,
       'customerAddress': customerAddress,
