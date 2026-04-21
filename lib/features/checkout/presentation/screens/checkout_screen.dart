@@ -37,6 +37,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final cart = context.read<CartProvider>();
     final orders = context.read<OrdersProvider>();
+    final authProvider = context.read<AuthProvider>();
     final now = DateTime.now();
 
     try {
@@ -58,9 +59,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         total: cart.totalAmount,
         status: 'placed',
         createdAt: now,
+        userEmail: authProvider.userEmail,
       );
 
-      orders.addOrder(order);
+      await orders.addOrder(order);
       cart.clearCart();
       Navigator.pushNamedAndRemoveUntil(
         context,
