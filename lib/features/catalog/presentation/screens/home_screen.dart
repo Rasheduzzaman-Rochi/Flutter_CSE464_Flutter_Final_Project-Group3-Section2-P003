@@ -1,47 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants.dart';
 import '../../../../core/widgets/main_nav_bar.dart';
 import '../../../../models/product_model.dart';
 import '../../../cart/provider/cart_provider.dart';
 import '../widgets/product_card.dart';
-
-const List<Product> _sampleProducts = [
-  Product(
-    id: 'p1',
-    name: 'Wireless Headphones',
-    price: 79.99,
-    category: 'Electronics',
-    imageUrl: 'https://picsum.photos/seed/headphones/800/800',
-    description:
-        'Comfortable wireless headphones with clear sound and long battery life.',
-  ),
-  Product(
-    id: 'p2',
-    name: 'Everyday T-Shirt',
-    price: 24.50,
-    category: 'Clothing',
-    imageUrl: 'https://picsum.photos/seed/tshirt/800/800',
-    description: 'Soft cotton tee designed for daily wear with a relaxed fit.',
-  ),
-  Product(
-    id: 'p3',
-    name: 'Desk Lamp',
-    price: 39.00,
-    category: 'Home',
-    imageUrl: 'https://picsum.photos/seed/lamps/800/800',
-    description: 'Minimal desk lamp with warm lighting for work or study.',
-  ),
-  Product(
-    id: 'p4',
-    name: 'Smart Watch',
-    price: 149.99,
-    category: 'Electronics',
-    imageUrl: 'https://picsum.photos/seed/watch/800/800',
-    description:
-        'Track your workouts, notifications, and sleep from your wrist.',
-  ),
-];
+import '../widgets/search_bar.dart';
+import '../widgets/category_filter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -52,13 +18,15 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = 'All';
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
-  final List<String> _categories = ['All', 'Electronics', 'Clothing', 'Home'];
+  String searchQuery = '';
+  final TextEditingController searchController = TextEditingController();
+  final _productsStream = FirebaseFirestore.instance
+      .collection('products')
+      .snapshots();
 
   @override
   void dispose() {
-    _searchController.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
@@ -138,97 +106,89 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          _buildSearchBar(),
-          _buildCategoryFilter(),
-          Expanded(child: _buildProductGrid()),
+          buildSearchBar(
+            searchController: searchController,
+            searchQuery: searchQuery,
+            onChanged: (value) => setState(() => searchQuery = value),
+            onClear: () {
+              searchController.clear();
+              setState(() => searchQuery = '');
+            },
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _productsStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text('Failed to load products: ${snapshot.error}'),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final allProducts = snapshot.data!.docs
+                    .map((doc) => Product.fromFirestore(doc.data(), doc.id))
+                    .toList();
+
+                final categories = <String>[
+                  'All',
+                  ...{
+                    for (final product in allProducts)
+                      if (product.category.trim().isNotEmpty) product.category,
+                  },
+                ];
+
+                final visibleProducts = allProducts
+                    .where(
+                      (product) =>
+                          _selectedCategory == 'All' ||
+                          product.category == _selectedCategory,
+                    )
+                    .where(
+                      (product) =>
+                          searchQuery.isEmpty ||
+                          product.name.toLowerCase().contains(
+                            searchQuery.toLowerCase(),
+                          ),
+                    )
+                    .toList();
+
+                if (allProducts.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('No products found in Firestore.'),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    CategoryFilter(
+                      categories: categories,
+                      selectedCategory: _selectedCategory,
+                      onCategorySelected: (category) =>
+                          setState(() => _selectedCategory = category),
+                    ),
+                    Expanded(child: _buildProductGrid(visibleProducts)),
+                  ],
+                );
+              },
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: const MainNavBar(currentIndex: 0),
     );
   }
 
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: (value) => setState(() => _searchQuery = value.trim()),
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: 'Search products by name',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: _searchQuery.isEmpty
-                ? null
-                : IconButton(
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Colors.transparent,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 16,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryFilter() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: SizedBox(
-        height: 54,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: _categories.length,
-          separatorBuilder: (_, index) => const SizedBox(width: 8),
-          itemBuilder: (ctx, i) => ChoiceChip(
-            label: Text(_categories[i]),
-            selected: _selectedCategory == _categories[i],
-            onSelected: (_) =>
-                setState(() => _selectedCategory = _categories[i]),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductGrid() {
-    final products = _sampleProducts
-        .where(
-          (product) =>
-              _selectedCategory == 'All' ||
-              product.category == _selectedCategory,
-        )
-        .where(
-          (product) =>
-              _searchQuery.isEmpty ||
-              product.name.toLowerCase().contains(_searchQuery.toLowerCase()),
-        )
-        .toList();
-
+  Widget _buildProductGrid(List<Product> products) {
     if (products.isEmpty) {
       return Center(
         child: Padding(

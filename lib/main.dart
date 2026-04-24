@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'core/constants.dart';
 import 'core/theme.dart';
@@ -16,7 +17,9 @@ import 'features/checkout/presentation/screens/checkout_screen.dart';
 import 'features/checkout/presentation/screens/order_success_screen.dart';
 import 'features/orders/presentation/screens/order_history_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
@@ -116,10 +119,6 @@ class AuthGate extends StatelessWidget {
       return const HomeScreen();
     }
 
-    return switch (auth.initialAuthRoute) {
-      AppRoutes.signup => const SignUpScreen(),
-      AppRoutes.otp => const OtpScreen(),
-      _ => const LoginScreen(),
-    };
+    return const LoginScreen();
   }
 }

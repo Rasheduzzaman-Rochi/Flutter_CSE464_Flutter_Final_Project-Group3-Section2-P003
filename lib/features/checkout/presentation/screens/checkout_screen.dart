@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants.dart';
@@ -20,6 +21,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressCtrl = TextEditingController();
   bool _isLoading = false;
 
+  String _generateOrderId() {
+    final shortId = DateTime.now().millisecondsSinceEpoch
+        .remainder(1000000)
+        .toString()
+        .padLeft(6, '0');
+    return '#$shortId';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -33,15 +42,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _submitOrder() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
 
     final cart = context.read<CartProvider>();
+    if (cart.itemCount == 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Your cart is empty.')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
     final orders = context.read<OrdersProvider>();
+    final authProvider = context.read<AuthProvider>();
+    if (!authProvider.isLoggedIn || authProvider.userId == null) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login again and place order.')),
+      );
+      return;
+    }
+
     final now = DateTime.now();
+    final generatedOrderId = _generateOrderId();
 
     try {
       final order = Order(
-        id: now.microsecondsSinceEpoch.toString(),
+        id: generatedOrderId,
         customerName: _nameCtrl.text.trim(),
         customerPhone: _phoneCtrl.text.trim(),
         customerAddress: _addressCtrl.text.trim(),
@@ -58,15 +85,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         total: cart.totalAmount,
         status: 'placed',
         createdAt: now,
+        userEmail: authProvider.userEmail?.trim().toLowerCase(),
+        userId: authProvider.userId,
       );
 
-      orders.addOrder(order);
+      await orders.addOrder(order);
+
+      if (!mounted) return;
+
       cart.clearCart();
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.orderSuccess,
         (route) => false,
       );
+    } on firestore.FirebaseException catch (e) {
+      if (mounted) {
+        final message = e.code == 'permission-denied'
+            ? 'Order failed: Firestore permission denied. Please login again.'
+            : 'Order failed: ${e.message ?? e.code}';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

@@ -16,12 +16,25 @@ class Product {
   });
 
   factory Product.fromFirestore(Map<String, dynamic> doc, String id) {
+    final rawPrice = doc['price'];
+    final parsedPrice = rawPrice is num
+        ? rawPrice.toDouble()
+        : double.tryParse(rawPrice?.toString() ?? '') ?? 0;
+
+    final rawImage =
+        doc['imageUrl'] ??
+        doc['imageURL'] ??
+        doc['image_url'] ??
+        doc['image'] ??
+        doc['img'] ??
+        doc['thumbnail'];
+
     return Product(
       id: id,
       name: doc['name'] ?? '',
-      price: (doc['price'] ?? 0).toDouble(),
+      price: parsedPrice,
       category: doc['category'] ?? '',
-      imageUrl: doc['imageUrl'] ?? '',
+      imageUrl: rawImage?.toString().trim() ?? '',
       description: doc['description'] ?? '',
     );
   }

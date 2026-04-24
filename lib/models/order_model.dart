@@ -1,12 +1,24 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class OrderItem {
   final String productId;
   final String name;
   final int quantity;
   final double price;
 
-  const OrderItem({required this.productId, required this.name, required this.quantity, required this.price});
+  const OrderItem({
+    required this.productId,
+    required this.name,
+    required this.quantity,
+    required this.price,
+  });
 
-  Map<String, dynamic> toMap() => {'productId': productId, 'name': name, 'quantity': quantity, 'price': price};
+  Map<String, dynamic> toMap() => {
+    'productId': productId,
+    'name': name,
+    'quantity': quantity,
+    'price': price,
+  };
 }
 
 class Order {
@@ -18,6 +30,8 @@ class Order {
   final double total;
   final String status;
   final DateTime createdAt;
+  final String? userEmail;
+  final String? userId;
 
   const Order({
     required this.id,
@@ -28,27 +42,59 @@ class Order {
     required this.total,
     required this.status,
     required this.createdAt,
+    this.userEmail,
+    this.userId,
   });
 
   factory Order.fromFirestore(Map<String, dynamic> doc, String id) {
-    final List<OrderItem> itemsList = (doc['items'] as List)
-        .map((e) => OrderItem(
-              productId: e['productId'],
-              name: e['name'],
-              quantity: e['quantity'],
-              price: (e['price'] as num).toDouble(),
-            ))
+    final List<dynamic> rawItems = (doc['items'] as List<dynamic>? ?? const []);
+    final List<OrderItem> itemsList = rawItems
+        .map(
+          (e) => OrderItem(
+            productId: e['productId'] ?? '',
+            name: e['name'] ?? '',
+            quantity: (e['quantity'] as num?)?.toInt() ?? 0,
+            price: (e['price'] as num?)?.toDouble() ?? 0,
+          ),
+        )
         .toList();
 
+    final createdAtValue = doc['createdAt'];
+    final createdAt = createdAtValue is Timestamp
+        ? createdAtValue.toDate()
+        : DateTime.now();
+    final firestoreOrderId = (doc['orderId'] as String?)?.trim();
+    final resolvedOrderId =
+        (firestoreOrderId != null && firestoreOrderId.isNotEmpty)
+        ? firestoreOrderId
+        : id;
+
     return Order(
-      id: id,
+      id: resolvedOrderId,
       customerName: doc['customerName'] ?? '',
       customerPhone: doc['customerPhone'] ?? '',
       customerAddress: doc['customerAddress'] ?? '',
       items: itemsList,
       total: (doc['total'] as num).toDouble(),
       status: doc['status'] ?? 'placed',
-      createdAt: (doc['createdAt'] as dynamic).toDate(),
+      createdAt: createdAt,
+      userEmail: doc['userEmail'] as String?,
+      userId: doc['userId'] as String?,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'orderId': id,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
+      'customerAddress': customerAddress,
+      'items': items.map((item) => item.toMap()).toList(),
+      'total': total,
+      'status': status,
+      'createdAt': FieldValue.serverTimestamp(),
+      'userEmail': userEmail,
+      'userId': userId,
+    };
   }
 }

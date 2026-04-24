@@ -1,38 +1,65 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import '../../../core/constants.dart';
 import '../data/auth_repository.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({AuthRepository? repository})
-    : _repository = repository ?? AuthRepository();
+    : _repository = repository ?? AuthRepository() {
+    _hydrateUserOnStartup();
+  }
 
   final AuthRepository _repository;
+  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   bool _isLoading = false;
   bool _isLoggedIn = false;
   String? _userEmail;
-  String _lastOtpCode = '';
 
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _isLoggedIn;
   bool get isRegistered => _repository.isRegistered;
   String? get userName => _repository.registeredName;
-  String? get userPhone => _repository.registeredPhone;
+  String? get userPhone {
+    final phone = _repository.registeredPhone;
+    return phone != null && phone.trim().isNotEmpty ? phone : null;
+  }
+
   String? get userEmail => _userEmail ?? _repository.registeredEmail;
-  String get lastOtpCode => _lastOtpCode;
+  String? get userId => _firebaseAuth.currentUser?.uid;
+  String get lastOtpCode => '123456';
   bool get isGoogleAccount => _repository.isGoogleAccount;
 
   String get initialAuthRoute {
-    if (!_repository.isRegistered) {
-      return AppRoutes.signup;
+    return _firebaseAuth.currentUser == null ? AppRoutes.login : AppRoutes.home;
+  }
+
+  void _hydrateUserOnStartup() {
+    final user = _firebaseAuth.currentUser;
+    _isLoggedIn = user != null;
+    _userEmail = user?.email;
+
+    if (user == null) {
+      return;
     }
 
-    if (!_repository.isOtpVerified) {
-      return AppRoutes.otp;
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _syncUser();
+    });
+  }
 
-    return AppRoutes.login;
+  Future<void> _syncUser() async {
+    final user = _firebaseAuth.currentUser;
+    _isLoggedIn = user != null;
+    _userEmail = user?.email;
+    if (user != null) {
+      try {
+        await _repository.loadCurrentUserProfile();
+      } catch (_) {
+        // Keep auth state usable even if profile read fails.
+      }
+    }
+    notifyListeners();
   }
 
   Future<String?> signUp(
@@ -50,8 +77,7 @@ class AuthProvider extends ChangeNotifier {
     );
 
     if (error == null) {
-      await _repository.sendOTP(email, (code) => _lastOtpCode = code);
-      _userEmail = email.trim().toLowerCase();
+      await _syncUser();
     }
 
     _setLoading(false);
@@ -59,10 +85,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<String?> verifyOtp(String otp) async {
-    _setLoading(true);
-    final error = await _repository.verifyOTP(_lastOtpCode, otp);
-    _setLoading(false);
-    return error;
+    return null;
   }
 
   Future<String?> login(String email, String password) async {
@@ -70,9 +93,7 @@ class AuthProvider extends ChangeNotifier {
     final error = await _repository.loginWithEmail(email, password);
 
     if (error == null) {
-      _isLoggedIn = true;
-      _userEmail = email.trim().toLowerCase();
-      notifyListeners();
+      await _syncUser();
     }
 
     _setLoading(false);
@@ -84,9 +105,7 @@ class AuthProvider extends ChangeNotifier {
     final error = await _repository.signInWithGoogle();
 
     if (error == null) {
-      _isLoggedIn = true;
-      _userEmail = _repository.registeredEmail;
-      notifyListeners();
+      await _syncUser();
     }
 
     _setLoading(false);
@@ -97,6 +116,8 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     await _repository.signOut();
     _isLoggedIn = false;
+    _userEmail = null;
+    notifyListeners();
     _setLoading(false);
   }
 

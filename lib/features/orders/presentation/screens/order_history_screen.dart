@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/widgets/main_nav_bar.dart';
 import '../../../orders/provider/orders_provider.dart';
+import '../../../auth/provider/auth_provider.dart';
 import '../widgets/order_tile.dart';
 
 class OrderHistoryScreen extends StatefulWidget {
@@ -14,12 +17,32 @@ class OrderHistoryScreen extends StatefulWidget {
 class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   String _filter = 'All';
   final List<String> _statuses = ['All', 'placed', 'shipped', 'delivered'];
+  bool _loadedOrders = false;
+  Timer? _snackBarTimer;
+
+  @override
+  void dispose() {
+    _snackBarTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_loadedOrders) return;
+    _loadedOrders = true;
+
+    final authProvider = context.read<AuthProvider>();
+    context.read<OrdersProvider>().startOrdersListener(
+      userEmail: authProvider.userEmail,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final orders = context
-        .watch<OrdersProvider>()
-        .orders
+    final ordersProvider = context.watch<OrdersProvider>();
+    final orders = ordersProvider.orders
         .where((order) => _filter == 'All' || order.status == _filter)
         .toList();
 
@@ -62,7 +85,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
             ),
           ),
           Expanded(
-            child: orders.isEmpty
+            child: ordersProvider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : orders.isEmpty
                 ? const Center(child: Text('No orders yet.'))
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
@@ -75,23 +100,25 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                           order.id,
                         );
                         final messenger = ScaffoldMessenger.of(context);
+                        _snackBarTimer?.cancel();
                         messenger.clearSnackBars();
                         messenger.showSnackBar(
                           SnackBar(
                             content: const Text('Order removed'),
-                            duration: const Duration(milliseconds: 1500),
+                            duration: const Duration(seconds: 2),
                             behavior: SnackBarBehavior.floating,
                             action: SnackBarAction(
                               label: 'Undo',
                               onPressed: () {
+                                _snackBarTimer?.cancel();
                                 context.read<OrdersProvider>().addOrder(order);
                               },
                             ),
                           ),
                         );
-                        Future.delayed(const Duration(milliseconds: 1600), () {
+                        _snackBarTimer = Timer(const Duration(seconds: 2), () {
                           if (!mounted) return;
-                          messenger.hideCurrentSnackBar();
+                          messenger.removeCurrentSnackBar();
                         });
                       },
                     ),
