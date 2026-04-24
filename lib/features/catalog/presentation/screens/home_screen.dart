@@ -6,6 +6,7 @@ import '../../../../core/widgets/main_nav_bar.dart';
 import '../../../../models/product_model.dart';
 import '../../../cart/provider/cart_provider.dart';
 import '../widgets/product_card.dart';
+import '../widgets/search_Bar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,15 +17,15 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = 'All';
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
+  String searchQuery = '';
+  final TextEditingController searchController = TextEditingController();
   final _productsStream = FirebaseFirestore.instance
       .collection('products')
       .snapshots();
 
   @override
   void dispose() {
-    _searchController.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
@@ -104,7 +105,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          _buildSearchBar(),
+          buildSearchBar(
+            searchController: searchController,
+            searchQuery: searchQuery,
+            onChanged: (value) => setState(() => searchQuery = value),
+            onClear: () {
+              searchController.clear();
+              setState(() => searchQuery = '');
+            },
+          ),
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _productsStream,
@@ -142,9 +151,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     )
                     .where(
                       (product) =>
-                          _searchQuery.isEmpty ||
+                          searchQuery.isEmpty ||
                           product.name.toLowerCase().contains(
-                            _searchQuery.toLowerCase(),
+                            searchQuery.toLowerCase(),
                           ),
                     )
                     .toList();
@@ -170,53 +179,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       bottomNavigationBar: const MainNavBar(currentIndex: 0),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: (value) => setState(() => _searchQuery = value.trim()),
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: 'Search products by name',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: _searchQuery.isEmpty
-                ? null
-                : IconButton(
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Colors.transparent,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 16,
-            ),
-          ),
-        ),
-      ),
     );
   }
 
