@@ -6,7 +6,8 @@ import '../../../../core/widgets/main_nav_bar.dart';
 import '../../../../models/product_model.dart';
 import '../../../cart/provider/cart_provider.dart';
 import '../widgets/product_card.dart';
-import '../widgets/search_Bar.dart';
+import '../widgets/search_bar.dart';
+import '../widgets/category_filter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -169,7 +170,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 return Column(
                   children: [
-                    _buildCategoryFilter(categories),
+                    CategoryFilter(
+                      categories: categories,
+                      selectedCategory: _selectedCategory,
+                      onCategorySelected: (category) =>
+                          setState(() => _selectedCategory = category),
+                    ),
                     Expanded(child: _buildProductGrid(visibleProducts)),
                   ],
                 );
@@ -179,27 +185,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       bottomNavigationBar: const MainNavBar(currentIndex: 0),
-    );
-  }
-
-  Widget _buildCategoryFilter(List<String> categories) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: SizedBox(
-        height: 54,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: categories.length,
-          separatorBuilder: (_, index) => const SizedBox(width: 8),
-          itemBuilder: (ctx, i) => ChoiceChip(
-            label: Text(categories[i]),
-            selected: _selectedCategory == categories[i],
-            onSelected: (_) =>
-                setState(() => _selectedCategory = categories[i]),
-          ),
-        ),
-      ),
     );
   }
 
