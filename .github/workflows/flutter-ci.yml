@@ -46,3 +46,11 @@ jobs:
         with:
           name: snapbuy-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapbuy-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
